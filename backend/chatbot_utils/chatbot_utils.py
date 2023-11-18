@@ -105,7 +105,7 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
     return {'answer': result['answer'], 'Source':[i.page_content for i in df['docs'].values[:10]], 'Confidence': [i for i in df['conf'].values[:10]]}
 
 
-def summarize_log(log_file_hash):
+def summarize_log(log_file_hash, log_file_path):
     '''
     Summarizes the log file. Returns a paragraph and some key points.
 
@@ -119,6 +119,13 @@ def summarize_log(log_file_hash):
     str
         The summary of the log file.
     '''
+    # Getting the GPT model
+    llm = ChatOpenAI(
+        openai_organization=key['openai_organization'],
+        model="gpt-4"
+        )
+
+    ### GETTING GENERAL LOG ###
     # Making a prompt template
     prompt_template = """Write a concise summary of the following. Start with a small paragraph and then mention some key events as bullet points:
 
@@ -132,17 +139,36 @@ def summarize_log(log_file_hash):
     prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
 
     # Getting the important docs
-    question = 'What are errors and important processes in the log?'
+    question = 'What are important processes in the log?'
     docs,_ = cm.get_context(question, f"./chromadb/{log_file_hash}_small", k = 50)
-
-    # Getting the GPT model
-    llm = ChatOpenAI(
-        openai_organization=key['openai_organization'],
-        model="gpt-4"
-        )
-
     chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
-    summary = chain.run(docs)
+    general_summary = chain.run(docs)
+
+
+    ### GETTING DEAMON SPECIFIC LOG ###
+    prompt_template = """Give a brief summary and mention the key points in form of bullet points :
+
+
+    {text}
+    """
+    prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
+
+    warnings, errors, outliers = cm.get_anomalies(log_file_path)
+    warnings, errors, outliers = text_to_docs(warnings), text_to_docs(errors), text_to_docs(outliers)
+
+    if len(warnings) > 0:
+        chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
+        warnings_summary = chain.run(warnings)
+
+    if len(errors) > 0:
+        chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
+        errors_summary = chain.run(errors)
+
+    if len(outliers) > 0:
+        chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
+        outliers_summary = chain.run(outliers)
+
+    summary = "***LOG SUMMARY***\n\n" + general_summary + "\n\n***WARNINGS***\n\n" + warnings_summary + "\n\n***ERRORS***\n\n" + errors_summary + "\n\n***ANOMALIES***\n\n" + outliers_summary + "\n\n***END OF SUMMARY***"
 
     return summary
 
