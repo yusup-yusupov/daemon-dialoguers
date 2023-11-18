@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 import sys
 sys.path.append('./chatbot_utils')
-from chatbot_utils import chat_with_bot
+from chatbot_utils import chat_with_bot, summarize_log, find_log_anomalies
 from context_model import convert_logs_to_embeddings
 app = Flask(__name__)
 
@@ -16,7 +16,7 @@ def get_answer():
 @app.route('/api/embedd-logs', methods=['POST'])
 def embedd_logs():
     data = request.json
-    file_path = data.get('file_path', '')
+    file_path = data.get('file_path', '') #Path to the log file
     answer = convert_logs_to_embeddings(file_path)
     return jsonify({'status': 'Success'})
 
@@ -24,6 +24,20 @@ def embedd_logs():
 def get_summary():
     # data = request.json
     return jsonify({'body': 'this is a summary'})
+
+    
+@app.route('/api/chat-bot', methods=['POST'])
+def get_summary():
+    data = request.json
+    ## Getting the data
+    question = data.get('question', '') #Question to ask the bot
+    log_file_hash = data.get('log_file_hash', '') #MD5 hash of the log file
+    chat_id = data.get('chat_id', '') #ID of the chat
+    memory = data.get('memory', '') #TRUE/FALSE
+
+    ## Getting the response from the bot
+    json_response = chat_with_bot(question, log_file_hash, chat_id, memory)
+    return jsonify(json_response)
 
 if __name__ == '__main__':
     app.run(threaded=True, port=5000)

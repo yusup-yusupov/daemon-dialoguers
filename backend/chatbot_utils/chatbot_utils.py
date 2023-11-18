@@ -1,13 +1,14 @@
 from langchain.embeddings import HuggingFaceEmbeddings, OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.document_loaders import TextLoader
+from langchain.document_loaders.telegram import text_to_docs
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain, RetrievalQAWithSourcesChain
 from langchain.memory import ConversationBufferMemory
-
 from langchain.prompts import PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
+
 import textwrap
 from time import monotonic
 
@@ -18,6 +19,10 @@ import pickle
 import pandas as pd
 import json
 
+import numpy as np
+from sklearn.cluster import DBSCAN
+from sklearn.decomposition import PCA
+
 with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api.json') as f:
     key = json.load(f)
 
@@ -25,7 +30,25 @@ os.environ["OPENAI_API_KEY"] = key['openai_api_key']
 
 
 def chat_with_bot(question, log_file_hash, chat_id, memory=False):
+    '''
+    This function is used to chat with the bot. It takes in the question, log_file_hash, chat_id and memory as input and returns the answer, source and confidence as output.
 
+    Parameters
+    ----------
+    question : str
+        The question to ask the bot.
+    log_file_hash : str
+        The MD5 hash of the log file.
+    chat_id : str
+        The ID of the chat.
+    memory : bool, optional
+        Whether to use the memory or not. The default is False.
+
+    Returns
+    -------
+    dict
+        The answer, source and confidence.
+    '''
     ## Creating the embedding object
     embedding = OpenAIEmbeddings(
                 openai_organization=key['openai_organization'],
@@ -67,12 +90,11 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
 
     ## Creating the retriever
     retriver = vectorstore_relevant.as_retriever(search_kwargs={"k": 5,"score_threshold": .5})
-    chat = RetrievalQAWithSourcesChain.from_llm(llm, 
+    chat = ConversationalRetrievalChain.from_llm(llm, 
                                                 retriever=retriver, 
                                                 memory=memory, 
                                                 return_source_documents=True,
-                                                max_tokens_limit=500, 
-                                                reduce_k_below_max_tokens=True)
+                                                max_tokens_limit=500)
 
     result = chat({"question": question})
 
@@ -84,13 +106,26 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
 
 
 def summarize_log(log_file_hash):
+    '''
+    Summarizes the log file. Returns a paragraph and some key points.
 
+    Parameters
+    ----------
+    log_file_hash : str
+        The MD5 hash of the log file.
+        
+    Returns
+    -------
+    str
+        The summary of the log file.
+    '''
     # Making a prompt template
-    prompt_template = """Write a concise summary of the following. Make them bullet points:
+    prompt_template = """Write a concise summary of the following. Start with a small paragraph and then mention some key events as bullet points:
 
 
     {text}
 
+    Paragraph:
 
     Important points:"""
 
@@ -111,4 +146,60 @@ def summarize_log(log_file_hash):
 
     return summary
 
+def find_log_anomalies(log_file_hash):
+    '''
+    Returns a summary of the anomalies in the log file in the form of bullet points.
 
+    Parameters
+    ----------
+    log_file_hash : str
+        The MD5 hash of the log file.
+
+    Returns
+    -------
+    str
+        The summary of the anomalies in the log file.
+
+    '''
+    # Getting the db
+    embedding = OpenAIEmbeddings(
+                    openai_organization=key['openai_organization'],
+                    openai_api_key = key['openai_api_key'],
+                    model="text-embedding-ada-002",
+                    max_retries=10,
+                    )
+    vector_db = Chroma(persist_directory=f"./chromadb/{log_file_hash}_small", embedding_function=embedding)
+
+    # Reducing the dimensionality of the embeddings
+    embeddings = np.array(vector_db.get(include=['embeddings'])['embeddings'])
+    pca = PCA(n_components=10)
+    pca.fit(embeddings)
+    pca_embeddings = pca.transform(embeddings)
+
+    # Cluster the embeddings
+    dbscan = DBSCAN(eps=0.1, min_samples=3)
+    dbscan.fit(pca_embeddings)
+
+    # Get all the core points and outliers
+    core_points = np.where(dbscan.core_sample_indices_)[0]
+    outliers = np.where(dbscan.labels_ == -1)[0]
+    outlier_behaviour = list(np.array(vector_db.get(include=['documents'])['documents'])[outliers][:80])
+    outlier_docs = text_to_docs(outlier_behaviour)
+
+    # Summarizing the anomalies
+    prompt_template = """Write these annomalies in form of bullet points:
+
+
+    {text}
+
+    Anomalies:"""
+
+    prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
+    llm = ChatOpenAI(
+    openai_organization=key['openai_organization'],
+    model="gpt-4",
+    )
+    chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
+    summary = chain.run(outlier_docs)
+
+    return summary
