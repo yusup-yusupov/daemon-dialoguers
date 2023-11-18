@@ -29,7 +29,6 @@ def convert_logs_to_embeddings(file_path):
     openai_organization=key['openai_organization'],
     openai_api_key = key['openai_api_key'],
     model="text-embedding-ada-002",
-    max_retries=10,
     )
 
     # Get the name of the file
@@ -55,7 +54,7 @@ def convert_logs_to_embeddings(file_path):
     Chroma.from_documents(docs, persist_directory=f'./chromadb/{md5hash}_large', embedding=embedding)
 
 
-def get_context(query, datastore):
+def get_context(query, datastore, k=15):
     # Load the embedding
     # embedding = HuggingFaceEmbeddings(
     # model_name=MODEL_ID,
@@ -73,7 +72,7 @@ def get_context(query, datastore):
     vector_db = Chroma(persist_directory=datastore, embedding_function=embedding)
 
     # Loading the relevant documents
-    relevant_documents = vector_db.similarity_search_with_relevance_scores(query, k=15)
+    relevant_documents = vector_db.similarity_search_with_relevance_scores(query, k=k)
     documents, scores = [i for i,j in relevant_documents], [j for i,j in relevant_documents]
 
     # Return the relevant documents vectorstore

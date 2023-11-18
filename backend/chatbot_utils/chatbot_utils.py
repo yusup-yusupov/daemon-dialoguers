@@ -56,16 +56,17 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
     llm = ChatOpenAI(
         openai_organization="org-kfsNXpcw90CoawqSyD7Mw4CD",
         model="gpt-4",
-        max_tokens=1000,
+        max_tokens=500,
+        max_retries=10,
         )
 
     ## Creating the retriever
-    retriver = vectorstore_relevant.as_retriever(search_kwargs={"k": 10,"score_threshold": .5})
+    retriver = vectorstore_relevant.as_retriever(search_kwargs={"k": 5,"score_threshold": .5})
     chat = RetrievalQAWithSourcesChain.from_llm(llm, 
                                                 retriever=retriver, 
                                                 memory=memory, 
-                                                return_source_documents=False,
-                                                max_tokens_limit=1000, 
+                                                return_source_documents=True,
+                                                max_tokens_limit=500, 
                                                 reduce_k_below_max_tokens=True)
 
     result = chat({"question": question})
