@@ -6,6 +6,11 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain, RetrievalQAWithSourcesChain
 from langchain.memory import ConversationBufferMemory
 
+from langchain.prompts import PromptTemplate
+from langchain.chains.summarize import load_summarize_chain
+import textwrap
+from time import monotonic
+
 import context_model as cm
 import os
 
@@ -54,7 +59,7 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
     
     ## Creating the chatbot
     llm = ChatOpenAI(
-        openai_organization="org-kfsNXpcw90CoawqSyD7Mw4CD",
+        openai_organization=key['openai_organization'],
         model="gpt-4",
         max_tokens=500,
         max_retries=10,
@@ -76,4 +81,34 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
         pickle.dump(memory, f)
 
     return {'answer': result['answer'], 'Source':[i.page_content for i in df['docs'].values[:10]], 'Confidence': [i for i in df['conf'].values[:10]]}
+
+
+def summarize_log(log_file_hash):
+
+    # Making a prompt template
+    prompt_template = """Write a concise summary of the following. Make them bullet points:
+
+
+    {text}
+
+
+    Important points:"""
+
+    prompt = PromptTemplate(template=prompt_template, input_variables=["text"])
+
+    # Getting the important docs
+    question = 'What are errors and important processes in the log?'
+    docs,_ = cm.get_context(question, f"./chromadb/{log_file_hash}_small", k = 50)
+
+    # Getting the GPT model
+    llm = ChatOpenAI(
+        openai_organization=key['openai_organization'],
+        model="gpt-4"
+        )
+
+    chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
+    summary = chain.run(docs)
+
+    return summary
+
 

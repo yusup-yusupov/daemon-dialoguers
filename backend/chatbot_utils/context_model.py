@@ -29,6 +29,7 @@ def convert_logs_to_embeddings(file_path):
     openai_organization=key['openai_organization'],
     openai_api_key = key['openai_api_key'],
     model="text-embedding-ada-002",
+    max_retries=10,
     )
 
     # Get the name of the file
