@@ -4,7 +4,7 @@ from langchain.document_loaders import TextLoader
 from langchain.document_loaders.telegram import text_to_docs
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain, RetrievalQAWithSourcesChain
+from langchain.chains import ConversationalRetrievalChain, RetrievalQAWithSourcesChain, ConversationChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
@@ -49,6 +49,8 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='.
     dict
         The answer, source and confidence.
     '''
+    print("--Chatbot Started--")
+
     ## Creating the embedding object
     embedding = OpenAIEmbeddings(
                 openai_organization=key['openai_organization'],
@@ -57,14 +59,18 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='.
                 max_retries=10,
                 )
 
+
+    print("--Embedding Created--")
     if not memory:
         memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True, input_key='question', output_key='answer')
         ## Save memory as pickle file
         with open(f'{memory_path}/{chat_id}_memory.pkl', 'wb') as f:
-            pickle.dump(chat_id, f)
+            pickle.dump(memory, f)
     else:
         with open(f'{memory_path}/{chat_id}_memory.pkl', 'rb') as f:
             memory = pickle.load(f)
+
+    print("--Memory Created--")
 
     ## Fetching the context
     docs_small,conf_small = cm.get_context(question, f"{chroma_path}/{log_file_hash}_small")
@@ -74,11 +80,15 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='.
     docs = docs_small + docs_large
     conf = conf_small + conf_large
 
+    print("--Context fetched--")
+
     ## Creating the context vectorstore
     df = pd.DataFrame({'docs':docs, 'conf':conf})
     df.sort_values(by='conf', ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
     vectorstore_relevant = Chroma.from_documents(list(df['docs'].values), embedding=embedding)
+
+    print("--Vectorstore created--")
     
     ## Creating the chatbot
     llm = ChatOpenAI(
@@ -87,7 +97,6 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='.
         max_tokens=500,
         max_retries=10,
         )
-
     ## Creating the retriever
     retriver = vectorstore_relevant.as_retriever(search_kwargs={"k": 5,"score_threshold": .5})
     chat = ConversationalRetrievalChain.from_llm(llm, 
@@ -98,6 +107,7 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='.
 
     result = chat({"question": question})
 
+    print("--Chatbot Executed--")
     ## Saving the memory
     with open(f'{memory_path}/{chat_id}_memory.pkl', 'wb') as f:
         pickle.dump(memory, f)
@@ -126,6 +136,7 @@ def summarize_log(log_file_hash, log_file_path, chroma_path='./chromadb'):
         )
 
     ### GETTING GENERAL LOG ###
+    print("--Getting General Log--")
     # Making a prompt template
     prompt_template = """Write a concise summary of the following. Start with a small paragraph and then mention some key events as bullet points:
 
@@ -144,8 +155,10 @@ def summarize_log(log_file_hash, log_file_path, chroma_path='./chromadb'):
     chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
     general_summary = chain.run(docs)
 
+    print("--General Summary Created--")
 
     ### GETTING DEAMON SPECIFIC LOG ###
+    print("--Getting Daemon Specific Log--")
     prompt_template = """Give a brief summary and mention the key points in form of bullet points :
 
 
@@ -168,9 +181,82 @@ def summarize_log(log_file_hash, log_file_path, chroma_path='./chromadb'):
         chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
         outliers_summary = chain.run(outliers)
 
+    print("--Daemon Specific Summary Created--")
+
     summary = "***LOG SUMMARY***\n\n" + general_summary + "\n\n***WARNINGS***\n\n" + warnings_summary + "\n\n***ERRORS***\n\n" + errors_summary + "\n\n***ANOMALIES***\n\n" + outliers_summary + "\n\n***END OF SUMMARY***"
 
     return summary
+
+def edit_summary(edit_prompt, summary_text, chat_id, memory=False, memory_path='./memory'):
+    '''
+    Edits the summary of the log file. Returns a paragraph and some key points.
+
+    Parameters
+    ----------
+    edit_prompt : str
+        The prompt to edit the summary.
+    summary_text : str
+        The summary of the log file.
+    chat_id : str
+        The ID of the chat.
+    memory : bool, optional
+        Whether to use the memory or not. The default is False.
+        
+    Returns
+    -------
+    str
+        The summary of the log file.
+    '''
+    ## Creating the summary doc
+    summary_doc = text_to_docs([summary_text])
+    ## Creating the embedding object
+    embedding = OpenAIEmbeddings(
+                openai_organization=key['openai_organization'],
+                openai_api_key = key['openai_api_key'],
+                model="text-embedding-ada-002",
+                max_retries=10,
+                )
+    vectorstore_relevant = Chroma.from_documents(summary_doc, embedding=embedding)
+
+    ## Creating the chatbot
+    llm = ChatOpenAI(
+        openai_organization=key['openai_organization'],
+        model="gpt-4",
+        max_tokens=2000,
+        max_retries=10,
+        )
+
+    ## Creating the retriever
+    retriver = vectorstore_relevant.as_retriever(search_kwargs={"k": 5,"score_threshold": .5})
+
+    if not memory:
+        memory = ConversationBufferMemory()
+        ## Save memory as pickle file
+        with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'wb') as f:
+            pickle.dump(memory, f)
+
+        chat = ConversationChain(llm=llm, memory=memory)
+        result = chat.predict(input=f"'{summary_text}'\n\n {edit_prompt}")
+
+        ## Saving the memory
+        with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'wb') as f:
+            pickle.dump(memory, f)
+
+        return result
+
+    else:
+        with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'rb') as f:
+            memory = pickle.load(f)
+        chat = ConversationChain(llm=llm, memory=memory)
+        result = chat.predict(input=edit_prompt)
+
+        ## Saving the memory
+        with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'wb') as f:
+            pickle.dump(memory, f)
+
+        return result
+
+        
 
 def find_log_anomalies(log_file_hash):
     '''
