@@ -29,7 +29,7 @@ with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api
 os.environ["OPENAI_API_KEY"] = key['openai_api_key']
 
 
-def chat_with_bot(question, log_file_hash, chat_id, memory=False):
+def chat_with_bot(question, log_file_hash, chat_id, memory=False, chroma_path='./chromadb', memory_path='./memory'):
     '''
     This function is used to chat with the bot. It takes in the question, log_file_hash, chat_id and memory as input and returns the answer, source and confidence as output.
 
@@ -60,15 +60,15 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
     if not memory:
         memory = ConversationBufferMemory(memory_key='chat_history', return_messages=True, input_key='question', output_key='answer')
         ## Save memory as pickle file
-        with open(f'./memory/{chat_id}_memory.pkl', 'wb') as f:
+        with open(f'{memory_path}/{chat_id}_memory.pkl', 'wb') as f:
             pickle.dump(chat_id, f)
     else:
-        with open(f'./memory/{chat_id}_memory.pkl', 'rb') as f:
+        with open(f'{memory_path}/{chat_id}_memory.pkl', 'rb') as f:
             memory = pickle.load(f)
 
     ## Fetching the context
-    docs_small,conf_small = cm.get_context(question, f"./chromadb/{log_file_hash}_small")
-    docs_large,conf_large = cm.get_context(question, f"./chromadb/{log_file_hash}_large")
+    docs_small,conf_small = cm.get_context(question, f"{chroma_path}/{log_file_hash}_small")
+    docs_large,conf_large = cm.get_context(question, f"{chroma_path}/{log_file_hash}_large")
 
     ## Add both large and small to a single list and sort them by confidence
     docs = docs_small + docs_large
@@ -99,13 +99,13 @@ def chat_with_bot(question, log_file_hash, chat_id, memory=False):
     result = chat({"question": question})
 
     ## Saving the memory
-    with open(f'./memory/{chat_id}_memory.pkl', 'wb') as f:
+    with open(f'{memory_path}/{chat_id}_memory.pkl', 'wb') as f:
         pickle.dump(memory, f)
 
     return {'answer': result['answer'], 'Source':[i.page_content for i in df['docs'].values[:10]], 'Confidence': [i for i in df['conf'].values[:10]]}
 
 
-def summarize_log(log_file_hash, log_file_path):
+def summarize_log(log_file_hash, log_file_path, chroma_path='./chromadb'):
     '''
     Summarizes the log file. Returns a paragraph and some key points.
 
@@ -140,7 +140,7 @@ def summarize_log(log_file_hash, log_file_path):
 
     # Getting the important docs
     question = 'What are important processes in the log?'
-    docs,_ = cm.get_context(question, f"./chromadb/{log_file_hash}_small", k = 50)
+    docs,_ = cm.get_context(question, f"{chroma_path}/{log_file_hash}_small", k = 50)
     chain = load_summarize_chain(llm, chain_type="stuff", prompt=prompt)
     general_summary = chain.run(docs)
 

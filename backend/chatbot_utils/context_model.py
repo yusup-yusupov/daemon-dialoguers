@@ -22,7 +22,7 @@ with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api
 
 ##### AUTOMATED CONTEXT SEARCH FUNCTIONS #####
 
-def convert_logs_to_embeddings(file_path):
+def convert_logs_to_embeddings(file_path,chroma_path='./chromadb'):
 
     # Load the embedding
 
@@ -42,14 +42,14 @@ def convert_logs_to_embeddings(file_path):
     md5hash = hashlib.md5(open(file_path,'rb').read()).hexdigest()
     # Get the md5 hash of the file
     # Load the document loader
-    loader = TextLoader(file_path)
+    loader = TextLoader(file_path, encoding='latin1')
     documents = loader.load()
 
     # Load the text splitter with small chunk size
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
     docs = text_splitter.split_documents(documents)
     # Creating the Chroma vector store
-    Chroma.from_documents(docs, persist_directory=f'./chromadb/{md5hash}_small', embedding=embedding)
+    Chroma.from_documents(docs, persist_directory=f'{chroma_path}/{md5hash}_small', embedding=embedding)
 
     # Add a time delay of 30 seconds
     time.sleep(30)
@@ -58,7 +58,7 @@ def convert_logs_to_embeddings(file_path):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     docs = text_splitter.split_documents(documents)
     # Creating the Chroma vector store
-    Chroma.from_documents(docs, persist_directory=f'./chromadb/{md5hash}_large', embedding=embedding)
+    Chroma.from_documents(docs, persist_directory=f'{chroma_path}/{md5hash}_large', embedding=embedding, )
 
 def get_context(query, datastore, k=15):
     # Load the embedding

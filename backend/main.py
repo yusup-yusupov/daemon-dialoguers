@@ -17,26 +17,40 @@ def get_answer():
 def embedd_logs():
     data = request.json
     file_path = data.get('file_path', '') #Path to the log file
-    answer = convert_logs_to_embeddings(file_path)
+    chromadb_path = data.get('chromadb_path', '')
+    answer = convert_logs_to_embeddings(file_path, chroma_path=chromadb_path)
     return jsonify({'status': 'Success'})
 
-@app.route('/api/get_summary', methods=['POST'])
+@app.route('/api/get-summary', methods=['POST'])
 def get_summary():
-    # data = request.json
-    return jsonify({'body': 'this is a summary'})
+    data = request.json
+    log_file_hash = data.get('log_file_hash', '') #MD5 hash of the log file
+    log_file_path = data.get('log_file_path', '') #Path of the log file
+    chromadb_path = data.get('chromadb_path', '')
 
+    # Getting the summary
+    summary = summarize_log(log_file_hash, log_file_path, chroma_path=chromadb_path)
+
+    return jsonify({'summary': summary})
     
 @app.route('/api/chat-bot', methods=['POST'])
-def get_summary():
+def chat_bot():
     data = request.json
     ## Getting the data
     question = data.get('question', '') #Question to ask the bot
     log_file_hash = data.get('log_file_hash', '') #MD5 hash of the log file
     chat_id = data.get('chat_id', '') #ID of the chat
     memory = data.get('memory', '') #TRUE/FALSE
+    chromadb_path = data.get('chromadb_path', '')
+    memory_path = data.get('memory_path', '')
+
+    if memory == 'TRUE':
+        memory = True
+    else:
+        memory = False
 
     ## Getting the response from the bot
-    json_response = chat_with_bot(question, log_file_hash, chat_id, memory)
+    json_response = chat_with_bot(question, log_file_hash, chat_id, memory=memory, chroma_path=chromadb_path, memory_path=memory_path)
     return jsonify(json_response)
 
 if __name__ == '__main__':
