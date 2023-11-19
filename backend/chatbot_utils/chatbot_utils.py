@@ -236,7 +236,7 @@ def edit_summary(edit_prompt, summary_text, chat_id, memory=False, memory_path='
             pickle.dump(memory, f)
 
         chat = ConversationChain(llm=llm, memory=memory)
-        result = chat.predict(input=f"'{summary_text}'\n\n {edit_prompt}")
+        result = chat.predict(input=f"'{summary_text}'\n\n Edit this summary. {edit_prompt}")
 
         ## Saving the memory
         with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'wb') as f:
@@ -248,7 +248,7 @@ def edit_summary(edit_prompt, summary_text, chat_id, memory=False, memory_path='
         with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'rb') as f:
             memory = pickle.load(f)
         chat = ConversationChain(llm=llm, memory=memory)
-        result = chat.predict(input=edit_prompt)
+        result = chat.predict(input=f"Edit the summary. {edit_prompt}")
 
         ## Saving the memory
         with open(f'{memory_path}/{chat_id}_editmemory.pkl', 'wb') as f:

@@ -102,7 +102,7 @@ def parse_log_file(file_path):
     """
     parsed_logs = []
 
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='latin1') as file:
         for line in file:
             parsed_line =line.strip() # Strip to remove newline characters
             parsed_logs.append(parsed_line)
