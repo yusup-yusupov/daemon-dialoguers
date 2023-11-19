@@ -17,7 +17,7 @@ model_kwargs = {'device': 'cuda'}
 
 
 # Read a json file C:\Users\vishw\OneDrive\Desktop\Projects\daemon-dialoguers\openAI_api.json
-with open('https://firebasestorage.googleapis.com/v0/b/daemon-dialoguers.appspot.com/o/openAI_api.json?alt=media&token=374a5458-393b-4d2b-8ec9-78bd99730586') as f:
+with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api.json') as f:
     key = json.load(f)
 
 ##### AUTOMATED CONTEXT SEARCH FUNCTIONS #####

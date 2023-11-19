@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import sys
 sys.path.append('./backend/chatbot_utils')
+sys.path.append('./chatbot_utils')
 from chatbot_utils import chat_with_bot, summarize_log, find_log_anomalies
 from context_model import convert_logs_to_embeddings
 
