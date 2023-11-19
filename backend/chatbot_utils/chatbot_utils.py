@@ -23,7 +23,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.decomposition import PCA
 
-with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api.json') as f:
+with open('gs://daemon-dialoguers.appspot.com/openAI_api.json') as f:
     key = json.load(f)
 
 os.environ["OPENAI_API_KEY"] = key['openai_api_key']

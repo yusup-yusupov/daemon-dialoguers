@@ -17,7 +17,7 @@ model_kwargs = {'device': 'cuda'}
 
 
 # Read a json file C:\Users\vishw\OneDrive\Desktop\Projects\daemon-dialoguers\openAI_api.json
-with open('C:/Users/vishw/OneDrive/Desktop/Projects/daemon-dialoguers/openAI_api.json') as f:
+with open('gs://daemon-dialoguers.appspot.com/openAI_api.json') as f:
     key = json.load(f)
 
 ##### AUTOMATED CONTEXT SEARCH FUNCTIONS #####
